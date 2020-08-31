@@ -4,7 +4,7 @@
   "type": "library",
   "homepage": "https://github.com/jgauthi/component_checkform",
   "require": {
-    "php": ">=4.0"
+    "php": ">=5.0"
   },
   "autoload": {
     "files": [ "src/fonctions.inc.php" ],
