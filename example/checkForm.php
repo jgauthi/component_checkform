@@ -86,7 +86,7 @@ else {
     ];
 }
 
-function input($type, $name, $default_value = null)
+function input(string $type, string $name, ?string $default_value = null): string
 {
     global $form_data;
     $input = ' type="'.$type.'" name = "'.$name.'" ';
@@ -104,7 +104,7 @@ function input($type, $name, $default_value = null)
     return $input;
 }
 
-function select($name, $liste)
+function select(string $name, iterable $liste): string
 {
     global $form_data;
     $input = '<select name="'.$name.'" id="'.$name.'">'.

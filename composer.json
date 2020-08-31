@@ -4,9 +4,9 @@
   "type": "library",
   "homepage": "https://github.com/jgauthi/component_checkform",
   "require": {
-    "php": ">=5.4",
+    "php": ">=7.1",
     "ext-mbstring": "*",
-    "ext-mysql": "*"
+    "ext-mysqli": "*"
   },
   "autoload": {
     "files": [ "src/fonctions.inc.php" ],

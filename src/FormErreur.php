@@ -3,12 +3,9 @@
   * @name: FormErreur
   * @note: Form error handler
   * @author: Jgauthi <github.com/jgauthi>, created at [5mars2007]
-  * @version: 1.7
-  * @Requirements:
-    - PHP version >= 5.4+ (http://php.net)
+  * @version: 2.0
   * @todo:
     - Ajout gestion des traductions
-    - testSelect
 
 *******************************************************************************/
 
@@ -38,23 +35,15 @@ class FormErreur
 
     /**
      * @param callable $function
-     *
-     * @todo A tester
      */
-    public function set_function_error(callable $function)
+    public function set_function_error(callable $function): void
     {
         $this->function_erreur = $function;
     }
 
     //-- Gestion des erreurs ------------------------------------------------------------------
 
-    /**
-     * @param $message
-     * @param null $id
-     *
-     * @return mixed
-     */
-    public function erreur($message, $id = null)
+    public function erreur(string $message, $id = null): bool
     {
         if (empty($id)) {
             $this->erreur[] = $message;
@@ -62,34 +51,21 @@ class FormErreur
             $this->erreur[$id] = $message;
         }
 
-        return call_user_func_array($this->function_erreur, [$message, $id]);
+        call_user_func_array($this->function_erreur, [$message, $id]);
+        return false;
     }
 
-    /**
-     * @param $message
-     * @param $id
-     *
-     * @return bool
-     */
-    public function erreur_default_function($message, $id)
+    public function erreur_default_function(string $message, string $id): bool
     {
         return false;
     }
 
-    /**
-     * @return int|void
-     */
-    public function nb_erreur()
+    public function nb_erreur(): int
     {
         return count($this->erreur);
     }
 
-    /**
-     * @param string $export_format
-     *
-     * @return string|null
-     */
-    public function rapport($export_format = 'html')
+    public function rapport(string $export_format = 'html'): ?string
     {
         if (0 === $this->nb_erreur()) {
             return null;
@@ -104,7 +80,7 @@ class FormErreur
 
         switch ($export_format) {
             case 'html':
-                return nl2br(htmlentities($rapport));
+                return nl2br(htmlentities($rapport, ENT_QUOTES, 'UTF-8'));
                 break;
 
             case 'alert':
@@ -114,7 +90,7 @@ class FormErreur
                 break;
 
             case 'javascript':
-                return "<script language=\"javascript\">\nwindow.alert('".
+                return "<script type=\"text/javascript\">\nwindow.alert('".
                     str_replace(["\r\n", "\r", "\n"], '\n', addslashes($rapport)).
                     "');\n</script>";
                 break;
@@ -127,13 +103,7 @@ class FormErreur
 
     //-- Fonction de gestion ------------------------------------------------------------------------------------
 
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testVide($nom, &$value)
+    public function testVide(string $nom, &$value): bool
     {
         if (!isset($value) || null === $value || '' === trim($value)) {
             return $this->erreur("Le champ '$nom' est vide", $nom);
@@ -142,13 +112,7 @@ class FormErreur
         return true;
     }
 
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testNum($nom, &$value)
+    public function testNum(string $nom, &$value): bool
     {
         if (!isset($value) || !is_numeric($value)) {
             return $this->erreur("Le champ '$nom' n'est pas un nombre", $nom);
@@ -157,16 +121,7 @@ class FormErreur
         return true;
     }
 
-    /**
-     * @param $value
-     * @param null   $table
-     * @param string $login_champ
-     * @param null   $id_compte
-     * @param string $id_champ
-     *
-     * @return bool|mixed
-     */
-    public function testLogin($value, $table = null, $login_champ = 'login', $id_compte = null, $id_champ = 'id')
+    public function testLogin($value, ?string $table = null, string $login_champ = 'login', ?string $id_compte = null, string $id_champ = 'id'): bool
     {
         if (!$this->testVide('Login', $value)) {
             return false;
@@ -188,9 +143,8 @@ class FormErreur
                 $req .= " AND `$id_champ` !=  '$id_compte'";
             }
 
-            $req = mysql_query($req);
-
-            if (mysql_num_rows($req) > 0) {
+            $req = mysqli_query($GLOBALS['mysqli'], $req);
+            if (mysqli_num_rows($req) > 0) {
                 return $this->erreur("Le login \"$value\" est déjà réservé, choississez-en un autre", 'Login');
             }
 
@@ -200,13 +154,7 @@ class FormErreur
         return true;
     }
 
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testDate($nom, $value)
+    public function testDate(string $nom, $value): bool
     {
         $regexp = '#^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$#i';
         if (!preg_match($regexp, $value, $reg)) {
@@ -218,71 +166,53 @@ class FormErreur
         return true;
     }
 
-    /**
-     * @param $nom
-     * @param $value
-     * @param $select
-     * @param bool $multi_select
-     *
-     * @return bool|mixed
-     */
-    public function testSelect($nom, $value, $select, $multi_select = false)
+    public function testSelect(string $nom, $value, array $select, $multi_select = false): bool
     {
         // Pas de multi-select, 1 seul option sélectionné
         if (!$multi_select) {
-            if (!$this->testVide($nom, $value) || !array_key_exists(MyStripSlashes($value), $select)) {
-                return $this->erreur("Sélectionner votre $nom", $nom);
-            }
-        } else {
-            if (!is_array($value) || 0 === count($value)) {
+            if (!$this->testVide($nom, $value) || !array_key_exists($value, $select)) {
                 return $this->erreur("Sélectionner votre $nom", $nom);
             }
 
-            // Vérifier que les valeurs récupérées correspondent au select
-            foreach ($value as $search) {
-                if (!$this->testVide($nom, $value) || !array_key_exists(MyStripSlashes($search), $nom)) {
-                    return $this->erreur("Sélectionner votre $nom", $nom);
-                }
-            }
+            return true;
+        }
 
-            // Si $multi_select est un chiffre,
-            // --> vérifier que le nombre d'objets sélectionnée correspond à $multi_select
-            if (true !== $multi_select && is_numeric($multi_select) && $multi_select !== count($value)) {
-                return $this->erreur("Le nombre de $nom sélectionné n'est pas correcte", $nom);
+        if (!is_array($value) || 0 === count($value)) {
+            return $this->erreur("Sélectionner votre $nom", $nom);
+        }
+
+        // Vérifier que les valeurs récupérées correspondent au select
+        foreach ($value as $search) {
+            if (!$this->testVide($nom, $value) || !array_key_exists($nom, $search)) {
+                return $this->erreur("Sélectionner votre $nom", $nom);
             }
+        }
+
+        // Si $multi_select est un chiffre,
+        // --> vérifier que le nombre d'objets sélectionnée correspond à $multi_select
+        if (true !== $multi_select && is_numeric($multi_select) && $multi_select !== count($value)) {
+            return $this->erreur("Le nombre de {$nom} sélectionné n'est pas correcte", $nom);
         }
 
         return true;
     }
 
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testCivilite($nom, $value)
+    public function testCivilite(string $nom, $value): bool
     {
         if (!preg_match('#^(M|Mme|Mlle)$#i', $value)) {
-            return $this->erreur("Le choix de '$nom' n'est pas correcte, choississez M, Mme ou Mlle", $nom);
+            return $this->erreur("Le choix de '{$nom}' n'est pas correcte, choississez M, Mme ou Mlle", $nom);
         }
 
         return true;
     }
 
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testTel($nom, $value)
+    public function testTel(string $nom, $value): bool
     {
         // [ATTENTION] Ne gère pas les numéros de téléphone étranger
         $regexp = '#^0[1-8][ .-]?([0-9]{2}[ .-]?){4}$#';
 
         if (!preg_match($regexp, $value)) {
-            return $this->erreur("Le format du numéro de '$nom' est incorrecte: ".
+            return $this->erreur("Le format du numéro de '{$nom}' est incorrecte: ".
                 'respecter le format: 00 00 00 00 00 ou 0000000000', $nom);
         }
 
@@ -290,60 +220,23 @@ class FormErreur
     }
 
     // Fonction pas encore développé pour l'instant
-
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testCp($nom, $value)
+    public function testCp(string $nom, $value): bool
     {
         return $this->testVide($nom, $value);
     }
 
-    /**
-     * @param $nom
-     * @param $value
-     *
-     * @return bool|mixed
-     */
-    public function testEmail($nom, $value)
+    public function testEmail(string $nom, $value): bool
     {
         if (!$this->testVide($nom, $value)) {
             return false;
-        }
-
-        // SOURCE:
-        //	http://www.phpinfo.net/blogs/~jpdezelus/astuce/regex-pour-verifier-des-email.html
-        $qtext = '[^\\x0d\\x22\\x5c\\x80-\\xff]';
-        $dtext = '[^\\x0d\\x5b-\\x5d\\x80-\\xff]';
-        $atom = '[^\\x00-\\x20\\x22\\x28\\x29\\x2c\\x2e\\x3a-\\x3c'.
-            '\\x3e\\x40\\x5b-\\x5d\\x7f-\\xff]+';
-        $quoted_pair = '\\x5c[\\x00-\\x7f]';
-        $domain_literal = "\\x5b($dtext|$quoted_pair)*\\x5d";
-        $quoted_string = "\\x22($qtext|$quoted_pair)*\\x22";
-        $domain_ref = $atom;
-        $sub_domain = "($domain_ref|$domain_literal)";
-        $word = "($atom|$quoted_string)";
-        $domain = "$sub_domain(\\x2e$sub_domain)*";
-        $local_part = "$word(\\x2e$word)*";
-        $addr_spec = "$local_part\\x40$domain";
-
-        if (!preg_match("!^$addr_spec$!", $value)) {
+        } elseif (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
             return $this->erreur("le champ '$nom' est incorrecte, respecter le format: nom@serveur.domaine", $nom);
         }
 
         return true;
     }
 
-    /**
-     * @param $pass1
-     * @param $pass2
-     *
-     * @return bool|mixed
-     */
-    public function testPassword($pass1, $pass2)
+    public function testPassword(string $pass1, string $pass2): bool
     {
         if (!$this->testVide('Mot de passe', $pass1)) {
             return false;
@@ -356,17 +249,7 @@ class FormErreur
         return true;
     }
 
-    /**
-     * @param $nom
-     * @param $data
-     * @param null $doctype
-     * @param null $directory
-     * @param null $filename
-     * @param int  $chmod
-     *
-     * @return mixed|null
-     */
-    public function testUpload($nom, $data, $doctype = null, $directory = null, $filename = null, $chmod = 0755)
+    public function testUpload(string $nom, array $data, ?string $doctype = null, string $directory = null, ?string $filename = null, int $chmod = 0755): bool
     {
         // Fichier mal uploadé
         if (UPLOAD_ERR_OK !== $data['error'] || !is_uploaded_file($data['tmp_name'])) {
@@ -377,8 +260,8 @@ class FormErreur
                     break;
 
                 case UPLOAD_ERR_INI_SIZE: case UPLOAD_ERR_FORM_SIZE:
-                $message = 'Le fichier est trop lourd';
-                break;
+                    $message = 'Le fichier est trop lourd';
+                    break;
 
                 case UPLOAD_ERR_PARTIAL:
                     $message = 'Le fichier n\'a été que partiellement téléchargé';
@@ -417,29 +300,24 @@ class FormErreur
 
     /**
      * But: Au lieu de définir les test* les uns à la suite des autres dans le code celles-ci, seront définit dans un tableau Array pour simplifier l'écriture et la configuration.
-     *
-     * @param $form_data
-     * @param $matrice
      */
-    public function testMatrice($form_data, $matrice)
+    public function testMatrice(array $form_data, iterable $matrice): bool
     {
-        if (!is_array($matrice) || empty($matrice)) {
+        if (empty($matrice)) {
             $this->erreur('Matrice non init', 'matrice');
-        } elseif (!is_array($form_data) || empty($form_data)) {
+        } elseif (empty($form_data)) {
             $this->erreur('Aucune donnée envoyé par le formulaire', 'matrice');
         }
 
         /* Format matrice:
-            array
-            (
-                'var_key' => array
-                (
-                    'lib' 			=> 'Nom form',
-                    'test'			=> 'testVide'
-                    'arg'			=> array(arg3, arg4, arg5, etc), // Optionnel
-                    'msg_erreur'	=>	'Lorem ipsu dolor'	// Optionnel, message erreur personnalisé
-                )
-            );
+            [
+                'var_key' => [
+                    'lib'           => 'Nom form',
+                    'test'          => 'testVide'
+                    'arg'           => array(arg3, arg4, arg5, etc), // Optionnel
+                    'msg_erreur'    =>  'Lorem ipsu dolor'  // Optionnel, message erreur personnalisé
+                ]
+            ];
         */
         foreach ($matrice as $key => $cfg) {
             if (empty($cfg['test']) || !method_exists($this, $cfg['test'])) {
@@ -463,33 +341,27 @@ class FormErreur
                 }
             }
         }
+
+        return true;
     }
 
     //-- Fonction de callback (expérimental) --------------------------------------------------
 
-    /**
-     * @return bool
-     */
-    public function callback()
+    public function callback(): bool
     {
         if ($this->ob_start) {
             return true;
         } elseif (headers_sent()) {
-            return trigger_error('Error, headers already send. Callback cannot be enable.');
+            return !trigger_error('Error, headers already send. Callback cannot be enable.');
         } elseif ($this->nb_erreur() > 0) {
             $this->ob_start = true;
             ob_start();
-        } else {
-            return false;
         }
+
+        return false;
     }
 
-    /**
-     * @param string $color
-     *
-     * @return bool
-     */
-    public function callback_rapport($color = 'red')
+    public function callback_rapport(string $color = 'red'): bool
     {
         if (!$this->ob_start || 0 === ob_get_length()) {
             return false;
@@ -498,12 +370,13 @@ class FormErreur
         $content = ob_get_clean();
         foreach ($this->erreur as $id => $erreur) {
             $id2 = htmlentities($id);
-            $erreur = htmlentities(str_replace("'$id'", '', $erreur));
+            $erreur = htmlentities(str_replace("'$id'", '', $erreur), ENT_QUOTES, 'UTF-8');
             $content = preg_replace("#<label([^>]+)>($id|$id2)#i",
                 "<label title=\"$erreur\" style=\"color: $color\"\\1>\\2",
                 $content);
         }
 
         echo $content;
+        return true;
     }
 }
