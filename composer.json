@@ -7,6 +7,7 @@
     "php": ">=4.0"
   },
   "autoload": {
+    "files": [ "src/fonctions.inc.php" ],
     "classmap": [ "src/" ]
   },
   "license": "GPL-3.0",
