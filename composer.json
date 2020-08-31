@@ -1,0 +1,16 @@
+{
+  "name": "jgauthi/component_checkform",
+  "description": "Form error handler",
+  "type": "library",
+  "homepage": "https://github.com/jgauthi/component_checkform",
+  "require": {
+    "php": ">=4.0"
+  },
+  "autoload": {
+    "classmap": [ "src/" ]
+  },
+  "license": "GPL-3.0",
+  "authors": [
+    { "name": "jgauthi", "homepage": "https://github.com/jgauthi" }
+  ]
+}
