@@ -4,12 +4,11 @@
   "type": "library",
   "homepage": "https://github.com/jgauthi/component_checkform",
   "require": {
-    "php": ">=7.1",
+    "php": ">=7.4",
     "ext-mbstring": "*",
-    "ext-mysqli": "*"
+    "ext-pdo": "*"
   },
   "autoload": {
-    "files": [ "src/fonctions.inc.php" ],
     "psr-4": { "Jgauthi\\Component\\Checkform\\": "src/" }
   },
   "license": "GPL-3.0",

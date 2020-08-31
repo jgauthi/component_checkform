@@ -3,7 +3,7 @@
   * @name: FormErreur
   * @note: Form error handler
   * @author: Jgauthi <github.com/jgauthi>, created at [5mars2007]
-  * @version: 2.0
+  * @version: 2.1
   * @todo:
     - Ajout gestion des traductions
 
@@ -11,14 +11,17 @@
 
 namespace Jgauthi\Component\Checkform;
 
+use PDO;
+use PDOStatement;
+
 class FormErreur
 {
-    protected $erreur = [];
-    protected $ob_start = false;
-    protected $function_trad = null;
+    protected array $erreur = [];
+    protected bool $ob_start = false;
+
+    /** @var callable|null */
     protected $function_erreur = null;
 
-    //-- Constructeur ------------------------------------------------------------------------
     public function __construct()
     {
         // A défaut d'une fonction de traduction, utiliser le gestionnaire d'erreur classique
@@ -28,14 +31,6 @@ class FormErreur
         $this->set_function_error([$this, 'erreur_default_function']);
     }
 
-    /*public function set_trad_function($function)
-    {
-        $this->function_trad = $function;
-    }*/
-
-    /**
-     * @param callable $function
-     */
     public function set_function_error(callable $function): void
     {
         $this->function_erreur = $function;
@@ -81,23 +76,19 @@ class FormErreur
         switch ($export_format) {
             case 'html':
                 return nl2br(htmlentities($rapport, ENT_QUOTES, 'UTF-8'));
-                break;
 
             case 'alert':
                 return "window.alert('".
                     str_replace(["\r\n", "\r", "\n"], '\n', addslashes($rapport)).
                     "');";
-                break;
 
             case 'javascript':
                 return "<script type=\"text/javascript\">\nwindow.alert('".
                     str_replace(["\r\n", "\r", "\n"], '\n', addslashes($rapport)).
                     "');\n</script>";
-                break;
 
             default: // Texte brute
                 return $rapport;
-                break;
         }
     }
 
@@ -106,7 +97,7 @@ class FormErreur
     public function testVide(string $nom, &$value): bool
     {
         if (!isset($value) || null === $value || '' === trim($value)) {
-            return $this->erreur("Le champ '$nom' est vide", $nom);
+            return $this->erreur("Le champ '{$nom}' est vide", $nom);
         }
 
         return true;
@@ -115,13 +106,13 @@ class FormErreur
     public function testNum(string $nom, &$value): bool
     {
         if (!isset($value) || !is_numeric($value)) {
-            return $this->erreur("Le champ '$nom' n'est pas un nombre", $nom);
+            return $this->erreur("Le champ '{$nom}' n'est pas un nombre", $nom);
         }
 
         return true;
     }
 
-    public function testLogin($value, ?string $table = null, string $login_champ = 'login', ?string $id_compte = null, string $id_champ = 'id'): bool
+    public function testLogin($value, PDO $pdo, ?string $table = null, string $login_champ = 'login', ?int $id_compte = null, string $id_champ = 'id'): bool
     {
         if (!$this->testVide('Login', $value)) {
             return false;
@@ -129,26 +120,31 @@ class FormErreur
 
         // Nombre de caractère
         if (mb_strlen($value) < 4 || mb_strlen($value) > 50) {
-            return $this->erreur("Votre login doit-être constitué d'au moins 4 caractèrs et de 50 caractères au maximun", $login_champ);
-        }
+            return $this->erreur(
+                'Votre login doit-être constitué d\'au moins 4 caractères et de 50 caractères au maximun',
+                $login_champ
+            );
 
-        // Vérifier que le login existe déjà
-        elseif (!empty($table) && !empty($login_champ)) {
+            // Vérifier que le login existe déjà
+        } elseif (!empty($table) && !empty($login_champ)) {
             // Action créer par défaut
-            $req = "SELECT `$login_champ` FROM `$table`
-					WHERE `$login_champ` = '$value'";
+            $req = "SELECT `$login_champ` FROM `{$table}` WHERE `$login_champ` = :login";
+            $search = ['login' => $value];
 
             // Action modifier
-            if (!empty($id_compte) && !empty($id_champ) && is_numeric($id_compte)) {
-                $req .= " AND `$id_champ` !=  '$id_compte'";
+            if (!empty($id_compte) && !empty($id_champ)) {
+                $req .= " AND `{$id_champ}` !=  :id";
+                $search['id'] = $id_compte;
             }
 
-            $req = mysqli_query($GLOBALS['mysqli'], $req);
-            if (mysqli_num_rows($req) > 0) {
-                return $this->erreur("Le login \"$value\" est déjà réservé, choississez-en un autre", 'Login');
+            /** @var PDOStatement $stmt */
+            $stmt = $pdo->prepare($req)->execute($search);
+            if ($stmt->rowCount() > 0) {
+                return $this->erreur(
+                    "Le login \"{$value}\" est déjà réservé, choississez-en un autre",
+                    'Login'
+                );
             }
-
-            return true;
         }
 
         return true;
@@ -158,9 +154,9 @@ class FormErreur
     {
         $regexp = '#^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$#i';
         if (!preg_match($regexp, $value, $reg)) {
-            return $this->erreur("Le format de la date '$nom' est incorrecte. Respecter le format: JJ/MM/YYYY", $nom);
+            return $this->erreur("Le format de la date '{$nom}' est incorrecte. Respecter le format: JJ/MM/YYYY", $nom);
         } elseif (!checkdate((int) $reg[2], (int) $reg[1], $reg[3])) {
-            return $this->erreur("La date '$nom' fourni n'existe pas", $nom);
+            return $this->erreur("La date '{$nom}' fourni n'existe pas", $nom);
         }
 
         return true;
@@ -178,13 +174,13 @@ class FormErreur
         }
 
         if (!is_array($value) || 0 === count($value)) {
-            return $this->erreur("Sélectionner votre $nom", $nom);
+            return $this->erreur("Sélectionner votre {$nom}", $nom);
         }
 
         // Vérifier que les valeurs récupérées correspondent au select
         foreach ($value as $search) {
             if (!$this->testVide($nom, $value) || !array_key_exists($nom, $search)) {
-                return $this->erreur("Sélectionner votre $nom", $nom);
+                return $this->erreur("Sélectionner votre {$nom}", $nom);
             }
         }
 
@@ -209,11 +205,14 @@ class FormErreur
     public function testTel(string $nom, $value): bool
     {
         // [ATTENTION] Ne gère pas les numéros de téléphone étranger
-        $regexp = '#^0[1-8][ .-]?([0-9]{2}[ .-]?){4}$#';
+        $regexp = '#^0[1-9][ .-]?([0-9]{2}[ .-]?){4}$#';
 
         if (!preg_match($regexp, $value)) {
-            return $this->erreur("Le format du numéro de '{$nom}' est incorrecte: ".
-                'respecter le format: 00 00 00 00 00 ou 0000000000', $nom);
+            return $this->erreur(
+                "Le format du numéro de '{$nom}' est incorrecte: ".
+                'respecter le format: 00 00 00 00 00 ou 0000000000',
+                $nom
+            );
         }
 
         return true;
@@ -230,7 +229,7 @@ class FormErreur
         if (!$this->testVide($nom, $value)) {
             return false;
         } elseif (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
-            return $this->erreur("le champ '$nom' est incorrecte, respecter le format: nom@serveur.domaine", $nom);
+            return $this->erreur("le champ '{$nom}' est incorrecte, respecter le format: nom@serveur.domaine", $nom);
         }
 
         return true;
@@ -249,7 +248,7 @@ class FormErreur
         return true;
     }
 
-    public function testUpload(string $nom, array $data, ?string $doctype = null, string $directory = null, ?string $filename = null, int $chmod = 0755): bool
+    public function testUpload(string $nom, array $data, ?string $doctype = null, string $directory = null, ?string $filename = null, int $chmod = 0644): bool
     {
         // Fichier mal uploadé
         if (UPLOAD_ERR_OK !== $data['error'] || !is_uploaded_file($data['tmp_name'])) {
@@ -276,7 +275,7 @@ class FormErreur
                     break;
             }
 
-            return $this->erreur("Fichier '$nom': $message", $nom);
+            return $this->erreur("Fichier '{$nom}': {$message}", $nom);
         }
 
         // Nom du fichier sur le serveur
@@ -285,9 +284,9 @@ class FormErreur
         }
 
         if (!empty($doctype) && !preg_match("#$doctype#i", $data['type'])) {
-            return $this->erreur("Fichier '$nom': type de fichier incorrect", $nom);
+            return $this->erreur("Fichier '{$nom}': type de fichier incorrect", $nom);
         } elseif (!move_uploaded_file($data['tmp_name'], $directory.$filename)) {
-            return $this->erreur("Fichier '$nom': Erreur lors du transfert du fichier", $nom);
+            return $this->erreur("Fichier '{$nom}': Erreur lors du transfert du fichier", $nom);
         }
 
         // Transfert réussi
@@ -371,9 +370,11 @@ class FormErreur
         foreach ($this->erreur as $id => $erreur) {
             $id2 = htmlentities($id);
             $erreur = htmlentities(str_replace("'$id'", '', $erreur), ENT_QUOTES, 'UTF-8');
-            $content = preg_replace("#<label([^>]+)>($id|$id2)#i",
+            $content = preg_replace(
+                "#<label([^>]+)>($id|$id2)#i",
                 "<label title=\"$erreur\" style=\"color: $color\"\\1>\\2",
-                $content);
+                $content
+            );
         }
 
         echo $content;

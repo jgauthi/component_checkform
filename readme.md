@@ -5,6 +5,7 @@ Form error handler.
 
 * PHP 4 (v1.4), PHP 5.4+ (v1.6+) ou PHP 7.1 (v2.0) & 7.4 (v2.1+)
 
+
 ## Install
 Edit your [composer.json](https://getcomposer.org) (launch `composer update` after edit):
 ```json
