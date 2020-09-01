@@ -16,6 +16,9 @@ use PDOStatement;
 
 class FormErreur
 {
+    protected const LIST_CIVILITY = [ 'M', 'Mme', 'Mlle' ];
+    protected const UPLOAD_DEFAULT_CHMOD = 0664;
+
     protected array $erreur = [];
     protected bool $ob_start = false;
 
@@ -167,7 +170,7 @@ class FormErreur
         // Pas de multi-select, 1 seul option sélectionné
         if (!$multi_select) {
             if (!$this->testVide($nom, $value) || !array_key_exists($value, $select)) {
-                return $this->erreur("Sélectionner votre $nom", $nom);
+                return $this->erreur("Sélectionner votre {$nom}", $nom);
             }
 
             return true;
@@ -193,10 +196,13 @@ class FormErreur
         return true;
     }
 
-    public function testCivilite(string $nom, $value): bool
+    public function testCivilite(string $nom, $value, array $requiredValues = self::LIST_CIVILITY): bool
     {
-        if (!preg_match('#^(M|Mme|Mlle)$#i', $value)) {
-            return $this->erreur("Le choix de '{$nom}' n'est pas correcte, choississez M, Mme ou Mlle", $nom);
+        if (!in_array($value, $requiredValues)) {
+            return $this->erreur(
+                "Le choix de '{$nom}' n'est pas correcte, choisissez ". implode(', ', $requiredValues),
+                $nom
+            );
         }
 
         return true;
@@ -248,7 +254,7 @@ class FormErreur
         return true;
     }
 
-    public function testUpload(string $nom, array $data, ?string $doctype = null, string $directory = null, ?string $filename = null, int $chmod = 0644): bool
+    public function testUpload(string $nom, array $data, ?string $doctype = null, string $directory = null, ?string $filename = null, int $chmod = self::UPLOAD_DEFAULT_CHMOD): bool
     {
         // Fichier mal uploadé
         if (UPLOAD_ERR_OK !== $data['error'] || !is_uploaded_file($data['tmp_name'])) {
@@ -318,6 +324,7 @@ class FormErreur
                 ]
             ];
         */
+
         foreach ($matrice as $key => $cfg) {
             if (empty($cfg['test']) || !method_exists($this, $cfg['test'])) {
                 $this->erreur("Matrice, test '{$cfg['test']}' invalide", $key);
@@ -351,7 +358,8 @@ class FormErreur
         if ($this->ob_start) {
             return true;
         } elseif (headers_sent()) {
-            return !trigger_error('Error, headers already send. Callback cannot be enable.');
+            trigger_error('Error, headers already send. Callback cannot be enable.');
+            return false;
         } elseif ($this->nb_erreur() > 0) {
             $this->ob_start = true;
             ob_start();
